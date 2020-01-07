@@ -1,0 +1,262 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "String",
+            "maxLength": 20,
+            "metadata": {
+                "description": "The name for the Lustre filesystem."
+            }
+        },
+        "vmSku": {
+            "defaultValue": "Standard_L8s_v2",
+            "allowedValues": [
+                "Standard_L8s_v2",
+                "Standard_L16s_v2",
+                "Standard_L32s_v2",
+                "Standard_L64s_v2",
+                "Standard_L80s_v2"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "The VM type for the Lustre nodes."
+            }
+        },
+        "instanceCount": {
+            "maxValue": 300,
+            "type": "Int",
+            "metadata": {
+                "description": "Number of additional Lustre nodes."
+            }
+        },
+        "rsaPublicKey": {
+            "type": "String",
+            "metadata": {
+                "description": "The RSA public key to access the nodes."
+            }
+        },
+        "imageResourceGroup": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the the resource group containing the Lustre image"
+            }
+        },
+        "imageName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the Lustre image to use"
+            }
+        },
+        "existingVnetResourceGroupName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the resource group for the existing virtual network to deploy the scale set into."
+            }
+        },
+        "existingVnetName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the existing virtual network to deploy the scale set into."
+            }
+        },
+        "existingSubnetName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of the existing subnet to deploy the scale set into."
+            }
+        },
+        "storageAccount": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Optional. The storage account to use (leave blank to disable HSM)"
+            }
+        },
+        "storageContainer": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The storage container to use for archive"
+            }
+        },
+        "storageKey": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The storage account key"
+            }
+        },
+        "logAnalyticsAccount": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Optional. The log analytics account to use (leave blank to disable logging)"
+            }
+        },
+        "logAnalyticsWorkspaceId": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": " The log analytics workspace id"
+            }
+        },
+        "logAnalyticsKey": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The log analytics account key"
+            }
+        }
+    },
+    "variables": {
+        "tagname": "[concat('LustreFS-', parameters('name'))]",
+        "subnet": "[resourceId(parameters('existingVnetResourceGroupName'), 'Microsoft.Network/virtualNetworks/subnets', parameters('existingVnetName'), parameters('existingSubNetName'))]",
+        "imageReference": {
+            "id": "[resourceId(parameters('imageResourceGroup'), 'Microsoft.Compute/images', parameters('imageName'))]"
+        },
+        "ciScript": "[concat('#!/bin/bash\n','/lustre-setup-scripts/setup_lustre.sh ',parameters('name'), ' \"', parameters('storageAccount'), '\" \"', parameters('storageKey'), '\" \"', parameters('storageContainer'), '\" \"', parameters('logAnalyticsAccount'), '\" \"', parameters('logAnalyticsWorkspaceId'), '\" \"', parameters('logAnalyticsKey'), '\" >/var/log/setup_lustre.log 2>&1\n')]"
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('name'), '-NetworkInterface')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "filesystem": "[variables('tagname')]"
+            },
+            "properties": {
+                "enableAcceleratedNetworking": true,
+                "ipConfigurations": [
+                    {
+                        "name": "ipConfig",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('subnet')]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "apiVersion": "2017-03-30",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces', concat(parameters('name'), '-NetworkInterface'))]"
+            ],
+            "tags": {
+                "filesystem": "[variables('tagname')]"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('vmSku')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('name')]",
+                    "adminUsername": "lustre",
+                    "customData": "[base64(variables('ciScript'))]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": true,
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "/home/lustre/.ssh/authorized_keys",
+                                    "keyData": "[parameters('rsaPublicKey')]"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "storageProfile": {
+                    "imageReference": "[variables('imageReference')]",
+                    "osDisk": {
+                        "createOption": "FromImage",
+                        "caching": "ReadWrite"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', concat(parameters('name'), '-NetworkInterface'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "[concat(parameters('name'), '-vmss')]",
+            "type": "Microsoft.Compute/virtualMachineScaleSets",
+            "tags": {
+                "filesystem": "[variables('tagname')]"
+            },
+            "sku": {
+                "name": "[parameters('vmSku')]",
+                "tier": "Standard",
+                "capacity": "[parameters('instanceCount')]"
+            },
+            "apiVersion": "2018-10-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "overprovision": true,
+                "upgradePolicy": {
+                    "mode": "Manual"
+                },
+                "virtualMachineProfile": {
+                    "storageProfile": {
+                        "imageReference": "[variables('imageReference')]",
+                        "osDisk": {
+                            "createOption": "FromImage",
+                            "caching": "ReadWrite"
+                        }
+                    },
+                    "osProfile": {
+                        "computerNamePrefix": "[parameters('name')]",
+                        "adminUsername": "lustre",
+                        "customData": "[base64(variables('ciScript'))]",
+                        "linuxConfiguration": {
+                            "disablePasswordAuthentication": true,
+                            "ssh": {
+                                "publicKeys": [
+                                    {
+                                        "path": "/home/lustre/.ssh/authorized_keys",
+                                        "keyData": "[parameters('rsaPublicKey')]"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "networkProfile": {
+                        "networkInterfaceConfigurations": [
+                            {
+                                "name": "[concat(parameters('name'), '-nic')]",
+                                "properties": {
+                                    "primary": true,
+                                    "enableAcceleratedNetworking": true,
+                                    "ipConfigurations": [
+                                        {
+                                            "name": "ipConfig-vmss",
+                                            "properties": {
+                                                "subnet": {
+                                                    "id": "[variables('subnet')]"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    ],
+    "outputs": {
+    },
+    "functions": [
+    ]
+}
