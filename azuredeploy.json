@@ -3,35 +3,33 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
         "name": {
-            "type": "String",
+            "type": "string",
             "maxLength": 20,
             "metadata": {
                 "description": "The name for the Lustre filesystem."
             }
         },
-        "vmSku": {
+        "mdsSku": {
+            "defaultValue": "Standard_D8s_v3",
+            "type": "string",
+            "metadata": "The SKU for the MDS"
+        },
+        "ossSku": {
             "defaultValue": "Standard_L8s_v2",
-            "allowedValues": [
-                "Standard_L8s_v2",
-                "Standard_L16s_v2",
-                "Standard_L32s_v2",
-                "Standard_L64s_v2",
-                "Standard_L80s_v2"
-            ],
-            "type": "String",
+            "type": "string",
             "metadata": {
                 "description": "The VM type for the Lustre nodes."
             }
         },
         "instanceCount": {
             "maxValue": 300,
-            "type": "Int",
+            "type": "int",
             "metadata": {
                 "description": "Number of additional Lustre nodes."
             }
         },
         "rsaPublicKey": {
-            "type": "String",
+            "type": "string",
             "metadata": {
                 "description": "The RSA public key to access the nodes."
             }
@@ -107,6 +105,62 @@
             "metadata": {
                 "description": "The log analytics account key"
             }
+        },
+        "mdtStorageSku": {
+            "type": "string",
+            "defaultValue": "Premium_LRS",
+            "metadata": {
+                "description": "The size of the MDT disks"
+            }
+        },
+        "mdtCacheOption": {
+            "type": "string",
+            "defaultValue": "ReadWrite",
+            "metadata": {
+                "description": "The size of the MDT disks"
+            }
+        },
+        "mdtDiskSize": {
+            "type": "int",
+            "defaultValue": 1024,
+            "metadata": {
+                "description": "The size of the MDT disks"
+            }
+        },
+        "mdtNumDisks": {
+            "type": "int",
+            "defaultValue": 2,
+            "metadata": {
+                "description": "The number of disks in the MDT RAID"
+            }
+        },
+        "ostStorageSku": {
+            "type": "string",
+            "defaultValue": "Premium_LRS",
+            "metadata": {
+                "description": "The size of the MDT disks"
+            }
+        },
+        "ostCacheOption": {
+            "type": "string",
+            "defaultValue": "None",
+            "metadata": {
+                "description": "The size of the MDT disks"
+            }
+        },
+        "ostDiskSize": {
+            "type": "int",
+            "defaultValue": 1024,
+            "metadata": {
+                "description": "The size of the MDT disks"
+            }
+        },
+        "ostNumDisks": {
+            "type": "int",
+            "defaultValue": 6,
+            "metadata": {
+                "description": "The number of disks in the MDT RAID"
+            }
         }
     },
     "variables": {
@@ -115,7 +169,35 @@
         "imageReference": {
             "id": "[resourceId(parameters('imageResourceGroup'), 'Microsoft.Compute/images', parameters('imageName'))]"
         },
-        "ciScript": "[concat('#!/bin/bash\n','/lustre-setup-scripts/setup_lustre.sh ',parameters('name'), ' \"', parameters('storageAccount'), '\" \"', parameters('storageKey'), '\" \"', parameters('storageContainer'), '\" \"', parameters('logAnalyticsAccount'), '\" \"', parameters('logAnalyticsWorkspaceId'), '\" \"', parameters('logAnalyticsKey'), '\" >/var/log/setup_lustre.log 2>&1\n')]"
+        "ciScript": "",
+        "copy": [
+            {
+                "name": "mdtDataDisks",
+                "count": "[parameters('mdtNumDisks')]",
+                "input": {
+                    "caching": "[parameters('mdtCacheOption')]",
+                    "managedDisk": {
+                        "storageAccountType": "[parameters('mdtStorageSku')]"
+                    },
+                    "createOption": "Empty",
+                    "lun": "[copyIndex('mdtDataDisks')]",
+                    "diskSizeGB": "[parameters('mdtDiskSize')]"
+                }
+            },
+            {
+                "name": "ostDataDisks",
+                "count": "[parameters('ostNumDisks')]",
+                "input": {
+                    "caching": "[parameters('ostCacheOption')]",
+                    "managedDisk": {
+                        "storageAccountType": "[parameters('ostStorageSku')]"
+                    },
+                    "createOption": "Empty",
+                    "lun": "[copyIndex('ostDataDisks')]",
+                    "diskSizeGB": "[parameters('ostDiskSize')]"
+                }
+            }
+        ]
     },
     "resources": [
         {
@@ -154,7 +236,7 @@
             },
             "properties": {
                 "hardwareProfile": {
-                    "vmSize": "[parameters('vmSku')]"
+                    "vmSize": "[parameters('mdsSku')]"
                 },
                 "osProfile": {
                     "computerName": "[parameters('name')]",
@@ -177,7 +259,8 @@
                     "osDisk": {
                         "createOption": "FromImage",
                         "caching": "ReadWrite"
-                    }
+                    },
+                    "dataDisks": "[variables('mdtDataDisks')]"
                 },
                 "networkProfile": {
                     "networkInterfaces": [
@@ -195,7 +278,7 @@
                 "filesystem": "[variables('tagname')]"
             },
             "sku": {
-                "name": "[parameters('vmSku')]",
+                "name": "[parameters('ossSku')]",
                 "tier": "Standard",
                 "capacity": "[parameters('instanceCount')]"
             },
@@ -212,7 +295,8 @@
                         "osDisk": {
                             "createOption": "FromImage",
                             "caching": "ReadWrite"
-                        }
+                        },
+                        "dataDisks": "[variables('ostDataDisks')]"
                     },
                     "osProfile": {
                         "computerNamePrefix": "[parameters('name')]",
