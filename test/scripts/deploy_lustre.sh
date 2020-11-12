@@ -50,7 +50,7 @@ else
 fi
 
 
-az deployment group create -g paul-azlustre --template-file scripts/azuredeploy_embed.json --parameters \
+az deployment group create -g $imageResourceGroup --template-file scripts/azuredeploy_embed.json --parameters \
     name="$name" \
     mdsSku="$mdsSku" \
     ossSku="$ossSku" \

@@ -29,6 +29,7 @@
             "inline": [
                 "chmod +x /tmp/lustre-setup-scripts/*.sh",
                 "/tmp/lustre-setup-scripts/disable-selinux.sh",
+                "/tmp/lustre-setup-scripts/additional-pkgs.sh",
                 "/tmp/lustre-setup-scripts/lfsrepo.sh 2.12",
                 "/tmp/lustre-setup-scripts/lfspkgs.sh",
                 "rm -rf /tmp/lustre-setup-scripts",

@@ -6,13 +6,14 @@
     "variables": {
         "hpc_image": "OpenLogic:CentOS-HPC:7.7:7.7.2020062600",
         "location": "westeurope",
-        "resource_group": "paul-azlustre",
+        "resource_group": "paul-azlustre-2",
         "vm_type": "Standard_D48s_v3",
-        "compute_instances": 4,
+        "compute_instances": 16,
         "low_priority": false,
         "vnet_resource_group": "variables.resource_group",
         "lustre_name": "lustre",
-        "lustre_mount": "/lustre"
+        "lustre_mount": "/lustre",
+        "lustre_tier": "std"
     },
     "vnet": {
         "resource_group": "variables.vnet_resource_group",
@@ -41,6 +42,7 @@
             "type": "vmss",
             "vm_type": "variables.vm_type",
             "instances": "variables.compute_instances",
+            "accelerated_networking": true,
             "low_priority": "variables.low_priority",
             "image": "variables.hpc_image",
             "subnet": "compute",
@@ -116,7 +118,7 @@
                 "variables.resource_group",
                 "hpcvnet",
                 "compute",
-                "eph"
+                "variables.lustre_tier"
             ],
             "deps": [
                 "azuredeploy_embed.json"
@@ -149,12 +151,49 @@
             "sudo": true
         },
         {
+            "script": "write_oss_hostfile.sh",
+            "tag": "headnode"
+        },
+        {
+            "script": "fix_lv2_network.sh",
+            "tag": "headnode",
+            "args": [
+                "variables.lustre_tier",
+                "lustre",
+                "oss"
+            ]
+        },
+        {
+            "script": "check_an.sh",
+            "tag": "headnode",
+            "args": [
+                "lustre",
+                "oss"
+            ]
+        },
+        {
+            "script": "check_an.sh",
+            "tag": "headnode",
+            "args": [
+                "hpcadmin",
+                "hostlists/compute"
+            ]
+        },
+        {
             "script": "run_ior.sh",
             "tag": "headnode",
             "args": [
                 "hostlists/tags/compute",
-                8
+                16,
+                16,
+                "lustre",
+                "oss"
             ]
+        },
+        {
+            "type": "local_script",
+            "script": "copy_back_results.sh",
+            "tag": "headnode"
         }
     ]
 }

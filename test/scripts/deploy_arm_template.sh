@@ -19,7 +19,7 @@ ostCacheOption=$16
 ostDiskSize=$17
 ostNumDisks=$18
 
-az deployment group create -g paul-azlustre --template-file azuredeploy_embed.json --parameters \
+az deployment group create -g $imageResourceGroup --template-file azuredeploy_embed.json --parameters \
     name="$name" \
     mdsSku="$mdsSku" \
     ossSku="$ossSku" \
