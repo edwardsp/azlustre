@@ -13,7 +13,10 @@
         "vnet_resource_group": "variables.resource_group",
         "lustre_name": "lustre",
         "lustre_mount": "/lustre",
-        "lustre_tier": "std"
+        "lustre_tier": "prem",
+        "oss_disk_setup": "separate",
+        "ost_per_oss": 6,
+        "lustre_stripe": 1
     },
     "vnet": {
         "resource_group": "variables.vnet_resource_group",
@@ -118,7 +121,8 @@
                 "variables.resource_group",
                 "hpcvnet",
                 "compute",
-                "variables.lustre_tier"
+                "variables.lustre_tier",
+                "variables.oss_disk_setup"
             ],
             "deps": [
                 "azuredeploy_embed.json"
@@ -146,7 +150,8 @@
             "tag": "headnode",
             "args": [
                 "variables.lustre_mount",
-                "variables.compute_instances"
+                "variables.compute_instances",
+                "variables.ost_per_oss"
             ],
             "sudo": true
         },
@@ -184,10 +189,14 @@
             "tag": "headnode",
             "args": [
                 "hostlists/tags/compute",
-                16,
+                24,
                 16,
                 "lustre",
-                "oss"
+                "oss",
+                "variables.lustre_tier",
+                "variables.oss_disk_setup",
+                "variables.lustre_stripe",
+                "variables.ost_per_oss"
             ]
         },
         {

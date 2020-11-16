@@ -152,14 +152,22 @@
             "type": "int",
             "defaultValue": 1024,
             "metadata": {
-                "description": "The size of the MDT disks"
+                "description": "The size of the OSS disks"
             }
         },
         "ostNumDisks": {
             "type": "int",
             "defaultValue": 6,
             "metadata": {
-                "description": "The number of disks in the MDT RAID"
+                "description": "The number of disks on each OSS"
+            }
+        },
+        "ossDiskSetup": {
+            "type": "string",
+            "defaultValue": "raid",
+            "allowedValues": [ "raid", "separate" ],
+            "metadata": {
+                "description": "Create a single RAID or use multiple OSTs"
             }
         }
     },

@@ -13,6 +13,7 @@ storage_container="$4"
 log_analytics_name="$5"
 log_analytics_workspace_id="$6"
 log_analytics_key="$7"
+oss_disk_setup="$8"
 
 # vars used in script
 if [ -e /dev/nvme0n1 ]; then
@@ -42,12 +43,16 @@ else
 	use_log_analytics=true
 fi
 
-if [ "$n_devices" -gt "1" ]; then
+if [[ "$n_devices" -gt "1" && ( "$oss_disk_setup" = "raid" || "$HOSTNAME" = "$mds" ) ]]; then
 	device=/dev/md10
+	echo "creating raid ($device) from $n_devices devices : $devices"
 	$script_dir/create_raid0.sh $device $devices
-else
-	device=$(echo $devices)
+	devices=$device
+	n_devices=1
 fi
+
+echo "using $n_devices device(s) : $devices"
+
 
 # SETUP LUSTRE YUM REPO
 #$script_dir/lfsrepo.sh $lustre_version
@@ -60,7 +65,7 @@ ost_index=1
 if [ "$HOSTNAME" = "$mds" ]; then
 
 	# SETUP MDS
-	PSSH_NODENUM=0 $script_dir/lfsmaster.sh $device
+	$script_dir/lfsmaster.sh $devices
 
 else
 
@@ -82,13 +87,13 @@ else
 		fi
 	done
 	
-	ost_index=$(($idx+2))
+	ost_index=$(( ( $idx * $n_devices ) + 1 ))
 
-	echo "ost_index=$ost_index"
+	echo "starting ost index=$ost_index"
 
 	mds_ip=$(ping -c 1 $mds | head -1 | sed 's/^[^)]*(//g;s/).*$//g')
 
-	PSSH_NODENUM=$ost_index $script_dir/lfsoss.sh $mds_ip $device
+	$script_dir/lfsoss.sh $mds_ip "$devices" $ost_index
 
 fi
 

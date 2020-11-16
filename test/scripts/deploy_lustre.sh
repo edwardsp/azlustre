@@ -9,7 +9,7 @@ existingVnetResourceGroupName=$6
 existingVnetName=$7
 existingSubnetName=$8
 lustreTier=$9
-
+ossDiskSetup=${10}
 
 if [ "$lustreTier" = "eph" ]; then
     mdsSku=Standard_L8s_v2
@@ -49,7 +49,6 @@ else
     exit 1
 fi
 
-
 az deployment group create -g $imageResourceGroup --template-file scripts/azuredeploy_embed.json --parameters \
     name="$name" \
     mdsSku="$mdsSku" \
@@ -68,5 +67,6 @@ az deployment group create -g $imageResourceGroup --template-file scripts/azured
     ostStorageSku="$ostStorageSku" \
     ostCacheOption="$ostCacheOption" \
     ostDiskSize="$ostDiskSize" \
-    ostNumDisks="$ostNumDisks"
+    ostNumDisks="$ostNumDisks" \
+    ossDiskSetup="$ossDiskSetup"
 
